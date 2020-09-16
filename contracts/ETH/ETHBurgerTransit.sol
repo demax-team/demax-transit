@@ -52,9 +52,10 @@ contract ETHBurgerTransit {
     }
     
     function collectFee() external {
-        require(msg.sender == handler || msg.sender == owner, "FORBIDDEN");
+        require(msg.sender == owner, "FORBIDDEN");
         require(totalFee > 0, "NO_FEE");
-        TransferHelper.safeTransferETH(handler, totalFee);
+        TransferHelper.safeTransferETH(owner, totalFee);
+        totalFee = 0;
     }
     
     function transitForBSC(address _token, uint _amount) external {
@@ -81,6 +82,8 @@ contract ETHBurgerTransit {
         require(msg.value == record.gasFee.add(developFee), "INSUFFICIENT_VALUE");
         
         TransferHelper.safeTransfer(_token, msg.sender, record.amount);
+        totalFee = totalFee.add(record.gasFee).add(developFee);
+        
         emit Withdraw(msg.sender, _token, record.amount);
         record.gasFee = 0;
         record.amount = 0;
@@ -93,7 +96,7 @@ contract ETHBurgerTransit {
         
         IWETH(WETH).withdraw(record.amount);
         TransferHelper.safeTransferETH(msg.sender, record.amount);
-        totalFee = totalFee.add(record.gasFee);
+        totalFee = totalFee.add(record.gasFee).add(developFee);
         
         emit Withdraw(msg.sender, WETH, record.amount);
         record.gasFee = 0;
