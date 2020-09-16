@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.16;
 
+import './libraries/SafeMath.sol';
 import './libraries/TransferHelper.sol';
 
 interface IWETH {
@@ -8,7 +9,9 @@ interface IWETH {
     function withdraw(uint) external;
 }
 
-contract BurgerTransit {
+contract ETHBurgerTransit {
+    using SafeMath for uint;
+    
     address public owner;
     address public handler;
     address public WETH;
@@ -25,6 +28,8 @@ contract BurgerTransit {
     mapping (address => mapping(address => Record)) public records;
     
     event Transit(address indexed from, address indexed token, uint amount);
+    event Withdraw(address indexed to, address indexed token, uint amount);
+    event CollectFee(address indexed handler, uint amount);
     
     constructor(address _WETH) public {
         handler = msg.sender;
@@ -46,6 +51,12 @@ contract BurgerTransit {
         developFee = _amount;
     }
     
+    function collectFee() external {
+        require(msg.sender == handler || msg.sender == owner, "FORBIDDEN");
+        require(totalFee > 0, "NO_FEE");
+        TransferHelper.safeTransferETH(handler, totalFee);
+    }
+    
     function transitForBSC(address _token, uint _amount) external {
         require(_amount > 0, "INVALID_AMOUNT");
         TransferHelper.safeTransferFrom(_token, msg.sender, address(this), _amount);
@@ -60,34 +71,31 @@ contract BurgerTransit {
     
     function addWithdrawRecord(address _token, address _to, uint _amount, uint _gasFee) external {
         require(msg.sender == handler, "ADD_RECORD_FORBIDDEN");
-        records[_to][_token].amount += _amount;
-        records[_to][_token].gasFee += _gasFee;
+        records[_to][_token].amount = records[_to][_token].amount.add(_amount);
+        records[_to][_token].gasFee = records[_to][_token].gasFee.add(_gasFee);
     }
     
     function withdrawFromBSC(address _token) external payable {
         Record storage record = records[msg.sender][_token];
         require(record.amount > 0, "NOTHING_TO_WITHDRAW");
-        require(msg.value == record.gasFee + developFee, "INSUFFICIENT_VALUE");
+        require(msg.value == record.gasFee.add(developFee), "INSUFFICIENT_VALUE");
         
         TransferHelper.safeTransfer(_token, msg.sender, record.amount);
+        emit Withdraw(msg.sender, _token, record.amount);
         record.gasFee = 0;
         record.amount = 0;
-    }
-    
-    function collectFee() external {
-        require(msg.sender == handler || msg.sender == owner, "FORBIDDEN");
-        require(totalFee > 0, "NO_FEE");
-        TransferHelper.safeTransferETH(handler, totalFee);
     }
     
     function withdrawETHFromBSC() external payable {
         Record storage record = records[msg.sender][WETH];
         require(record.amount > 0, "NOTHING_TO_WITHDRAW");
-        require(msg.value == record.gasFee + developFee, "INSUFFICIENT_VALUE");
+        require(msg.value == record.gasFee.add(developFee), "INSUFFICIENT_VALUE");
         
         IWETH(WETH).withdraw(record.amount);
         TransferHelper.safeTransferETH(msg.sender, record.amount);
-        totalFee += record.gasFee;
+        totalFee = totalFee.add(record.gasFee);
+        
+        emit Withdraw(msg.sender, WETH, record.amount);
         record.gasFee = 0;
         record.amount = 0;
     }
