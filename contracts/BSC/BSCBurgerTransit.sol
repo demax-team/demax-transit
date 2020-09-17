@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.16;
 
-import './libraries/TransferHelper.sol';
+import '../libraries/TransferHelper.sol';
 import './BurgerERC20.sol';
 
 interface IWETH {

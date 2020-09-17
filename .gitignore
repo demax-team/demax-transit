@@ -1,0 +1,10 @@
+yarn.lock
+node_modules/
+build/
+flatten
+
+node_modules
+.DS_Store
+.config.js
+report.*.json
+yarn-error.log
