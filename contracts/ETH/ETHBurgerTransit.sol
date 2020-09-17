@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.16;
 
-import './libraries/SafeMath.sol';
-import './libraries/TransferHelper.sol';
+import '../libraries/SafeMath.sol';
+import '../libraries/TransferHelper.sol';
 
 interface IWETH {
     function deposit() external payable;
