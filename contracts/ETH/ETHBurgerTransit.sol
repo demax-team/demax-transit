@@ -14,6 +14,7 @@ contract ETHBurgerTransit {
     
     address public owner;
     address public handler;
+    address public developWallet;
     address public WETH;
     
     uint public totalFee;
@@ -31,8 +32,9 @@ contract ETHBurgerTransit {
     event Withdraw(address indexed to, address indexed token, uint amount);
     event CollectFee(address indexed handler, uint amount);
     
-    constructor(address _WETH) public {
-        handler = msg.sender;
+    constructor(address _WETH, address _handler, address _developWallet) public {
+        handler = _handler;
+        developWallet = _developWallet;
         owner = msg.sender;
         WETH = _WETH;
     }
@@ -46,6 +48,11 @@ contract ETHBurgerTransit {
         handler = _handler;
     }
     
+    function changeDevelopWallet(address _developWallet) external {
+        require(msg.sender == owner, "CHANGE_DEVELOP_WALLET_FORBIDDEN");
+        developWallet = _developWallet;
+    } 
+    
     function changeDevelopFee(uint _amount) external {
         require(msg.sender == owner, "CHANGE_DEVELOP_FEE_FORBIDDEN");
         developFee = _amount;
@@ -53,8 +60,9 @@ contract ETHBurgerTransit {
     
     function collectFee() external {
         require(msg.sender == owner, "FORBIDDEN");
+        require(developWallet != address(0), "SETUP_DEVELOP_WALLET");
         require(totalFee > 0, "NO_FEE");
-        TransferHelper.safeTransferETH(owner, totalFee);
+        TransferHelper.safeTransferETH(developWallet, totalFee);
         totalFee = 0;
     }
     
