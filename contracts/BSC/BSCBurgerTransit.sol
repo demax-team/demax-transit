@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.16;
 
-import '../libraries/TransferHelper.sol';
+import './libraries/TransferHelper.sol';
+import './libraries/SignatureUtils.sol';
 import './BurgerERC20.sol';
 
 interface IWETH {
@@ -12,36 +13,40 @@ interface IWETH {
 contract BSCBurgerTransit {
     using SafeMath for uint;
     address public owner;
-    address public handler;
+    address public signWallet;
+    address public developWallet;
     
     uint public totalFee;
     
     uint public developFee;
-    
-    struct Record {
-        uint gasFee;
-        uint amount;
-    }
-    mapping (address => mapping(address => Record)) public records;
     
     // key: bsc token, value: transit token
     mapping (address => address) public pairFor; 
     // key: transit token, value: bsc token
     mapping (address => address) public pairTo;
     
+    // key: transit_id
+    mapping (bytes32 => bool) public executedMap;
+    
     event Payback(address indexed from, address indexed token, uint amount);
-    event Withdraw(address indexed to, address indexed token, uint amount);
+    event Withdraw(bytes32 transitId, address indexed to, address indexed token, uint amount);
     event CollectFee(address indexed handler, uint amount);
     
-    constructor() public {
-        handler = msg.sender;
+    constructor(address _signer, address _developer) public {
+        signWallet = _signer;
+        developWallet = _developer;
         owner = msg.sender;
     }
     
-    function changeHandler(address _handler) external {
-        require(msg.sender == owner, "CHANGE_HANDLER_FORBIDDEN");
-        handler = _handler;
+    function changeSigner(address _wallet) external {
+        require(msg.sender == owner, "CHANGE_SIGNER_FORBIDDEN");
+        signWallet = _wallet;
     }
+    
+    function changeDevelopWallet(address _wallet) external {
+        require(msg.sender == owner, "CHANGE_DEVELOP_WALLET_FORBIDDEN");
+        developWallet = _wallet;
+    } 
     
     function changeDevelopFee(uint _amount) external {
         require(msg.sender == owner, "CHANGE_DEVELOP_FEE_FORBIDDEN");
@@ -49,38 +54,53 @@ contract BSCBurgerTransit {
     }
     
     function collectFee() external {
-        require(msg.sender == handler || msg.sender == owner, "FORBIDDEN");
+        require(msg.sender == owner, "FORBIDDEN");
+        require(developWallet != address(0), "SETUP_DEVELOP_WALLET");
         require(totalFee > 0, "NO_FEE");
-        TransferHelper.safeTransferETH(handler, totalFee);
-    }
-    
-    function addTransitRecord(address _transitToken, string memory _name, string memory _symbol, uint8 _decimals, address _to, uint _amount, uint _gasFee) public {
-        require(msg.sender == handler, "ADD_RECORD_FORBIDDEN");
-        
-        if(pairTo[_transitToken] == address(0)) {
-            _createToken(_transitToken, _name, _symbol, _decimals);
-        }
-        
-        Record storage record = records[_to][pairTo[_transitToken]];
-        record.amount = record.amount.add(_amount);
-        record.gasFee = record.gasFee.add(_gasFee);
+        TransferHelper.safeTransferETH(developWallet, totalFee);
+        totalFee = 0;
     }
     
     function paybackTransit(address _token, uint _amount) external {
-        require(_amount > 0, "INVALID_AMOUNT");
+        require(pairFor[_token] != address(0), "UNSUPPORT_TOKEN");
+        require(_amount > 0 && BurgerERC20(_token).balanceOf(msg.sender) >= _amount, "INVALID_AMOUNT");
         BurgerERC20(_token).burn(msg.sender, _amount);
         emit Payback(msg.sender, pairFor[_token], _amount);
     }
     
-    function withdrawTransitToken(address _token) external payable {
-        Record storage record = records[msg.sender][_token];
-        require(record.amount > 0, "NOTHING_TO_WITHDRAW");
-        require(msg.value == record.gasFee.add(developFee), "INSUFFICIENT_VALUE");
+    function withdrawTransitToken(
+    bytes calldata _signature,
+    bytes32 _transitId,
+    address _to,
+    uint _amount,
+    address _token,
+    string calldata _name,
+    string calldata _symbol,
+    uint8 _decimals
+    ) external payable {
+        require(_to == msg.sender, "FORBIDDEN");
+        require(executedMap[_transitId] == false, "ALREADY_EXECUTED");
+        bytes32 message = keccak256(abi.encodePacked(_transitId, _to, _amount, _token, _name, _symbol, _decimals));
+        require(_verify(message, _signature), "INVALID_SIGNATURE");
+
+        require(_amount > 0, "NOTHING_TO_WITHDRAW");
+        require(msg.value == developFee, "INSUFFICIENT_VALUE");
         
-        BurgerERC20(_token).mint(msg.sender, record.amount);
-        emit Withdraw(msg.sender, _token, record.amount);
-        record.gasFee = 0;
-        record.amount = 0;
+        if(pairTo[_token] == address(0)) {
+            _createToken(_token, _name, _symbol, _decimals);
+        }
+        
+        BurgerERC20(pairTo[_token]).mint(msg.sender, _amount);
+        totalFee = totalFee.add(developFee);
+        executedMap[_transitId] = true;
+        
+        emit Withdraw(_transitId, msg.sender, _token, _amount);
+    }
+    
+    function _verify(bytes32 _message, bytes memory _signature) internal view returns (bool) {
+        bytes32 hash = SignatureUtils.toEthBytes32SignedMessageHash(_message);
+        address[] memory signList = SignatureUtils.recoverAddresses(hash, _signature);
+        return signList[0] == signWallet;
     }
     
     function _createToken (address _transitToken, string memory _name, string memory _symbol, uint8 _decimals) internal returns(address bscBurgerToken){
