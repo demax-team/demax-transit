@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.16;
 
-import '../libraries/SafeMath.sol';
-import '../libraries/TransferHelper.sol';
+import './libraries/SafeMath.sol';
+import './libraries/TransferHelper.sol';
+import './libraries/SignatureUtils.sol';
 
 interface IWETH {
     function deposit() external payable;
@@ -13,39 +14,34 @@ contract ETHBurgerTransit {
     using SafeMath for uint;
     
     address public owner;
-    address public handler;
+    address public signWallet;
     address public developWallet;
     address public WETH;
     
     uint public totalFee;
-    
     uint public developFee;
     
-    struct Record {
-        uint gasFee;
-        uint amount;
-    }
-    
-    mapping (address => mapping(address => Record)) public records;
+    // key: payback_id
+    mapping (bytes32 => bool) public executedMap;
     
     event Transit(address indexed from, address indexed token, uint amount);
-    event Withdraw(address indexed to, address indexed token, uint amount);
+    event Withdraw(bytes32 paybackId, address indexed to, address indexed token, uint amount);
     event CollectFee(address indexed handler, uint amount);
     
-    constructor(address _WETH, address _handler, address _developWallet) public {
-        handler = _handler;
-        developWallet = _developWallet;
-        owner = msg.sender;
+    constructor(address _WETH, address _signer, address _developer) public {
         WETH = _WETH;
+        signWallet = _signer;
+        developWallet = _developer;
+        owner = msg.sender;
     }
     
     receive() external payable {
         assert(msg.sender == WETH);
     }
     
-    function changeHandler(address _handler) external {
-        require(msg.sender == owner, "CHANGE_HANDLER_FORBIDDEN");
-        handler = _handler;
+    function changeSigner(address _wallet) external {
+        require(msg.sender == owner, "CHANGE_SIGNER_FORBIDDEN");
+        signWallet = _wallet;
     }
     
     function changeDevelopWallet(address _developWallet) external {
@@ -78,36 +74,33 @@ contract ETHBurgerTransit {
         emit Transit(msg.sender, WETH, msg.value);
     }
     
-    function addWithdrawRecord(address _token, address _to, uint _amount, uint _gasFee) external {
-        require(msg.sender == handler, "ADD_RECORD_FORBIDDEN");
-        records[_to][_token].amount = records[_to][_token].amount.add(_amount);
-        records[_to][_token].gasFee = records[_to][_token].gasFee.add(_gasFee);
+    function withdrawFromBSC(bytes calldata _signature, bytes32 _paybackId, address _token, address _to, uint _amount) external payable {
+        require(_to == msg.sender, "FORBIDDEN");
+        require(executedMap[_paybackId] == false, "ALREADY_EXECUTED");
+        
+        require(_amount > 0, "NOTHING_TO_WITHDRAW");
+        require(msg.value == developFee, "INSUFFICIENT_VALUE");
+        
+        bytes32 message = keccak256(abi.encodePacked(_paybackId, _token, _to, _amount));
+        require(_verify(message, _signature), "INVALID_SIGNATURE");
+        
+        if(_token == WETH) {
+            IWETH(WETH).withdraw(_amount);
+            TransferHelper.safeTransferETH(msg.sender, _amount);
+        } else {
+            TransferHelper.safeTransfer(_token, msg.sender, _amount);
+        }
+        TransferHelper.safeTransfer(_token, msg.sender, _amount);
+        totalFee = totalFee.add(developFee);
+        
+        executedMap[_paybackId] = true;
+        
+        emit Withdraw(_paybackId, msg.sender, _token, _amount);
     }
     
-    function withdrawFromBSC(address _token) external payable {
-        Record storage record = records[msg.sender][_token];
-        require(record.amount > 0, "NOTHING_TO_WITHDRAW");
-        require(msg.value == record.gasFee.add(developFee), "INSUFFICIENT_VALUE");
-        
-        TransferHelper.safeTransfer(_token, msg.sender, record.amount);
-        totalFee = totalFee.add(record.gasFee).add(developFee);
-        
-        emit Withdraw(msg.sender, _token, record.amount);
-        record.gasFee = 0;
-        record.amount = 0;
-    }
-    
-    function withdrawETHFromBSC() external payable {
-        Record storage record = records[msg.sender][WETH];
-        require(record.amount > 0, "NOTHING_TO_WITHDRAW");
-        require(msg.value == record.gasFee.add(developFee), "INSUFFICIENT_VALUE");
-        
-        IWETH(WETH).withdraw(record.amount);
-        TransferHelper.safeTransferETH(msg.sender, record.amount);
-        totalFee = totalFee.add(record.gasFee).add(developFee);
-        
-        emit Withdraw(msg.sender, WETH, record.amount);
-        record.gasFee = 0;
-        record.amount = 0;
+    function _verify(bytes32 _message, bytes memory _signature) internal view returns (bool) {
+        bytes32 hash = SignatureUtils.toEthBytes32SignedMessageHash(_message);
+        address[] memory signList = SignatureUtils.recoverAddresses(hash, _signature);
+        return signList[0] == signWallet;
     }
 }
