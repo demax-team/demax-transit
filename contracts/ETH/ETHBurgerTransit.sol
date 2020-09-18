@@ -90,7 +90,6 @@ contract ETHBurgerTransit {
         } else {
             TransferHelper.safeTransfer(_token, msg.sender, _amount);
         }
-        TransferHelper.safeTransfer(_token, msg.sender, _amount);
         totalFee = totalFee.add(developFee);
         
         executedMap[_paybackId] = true;
