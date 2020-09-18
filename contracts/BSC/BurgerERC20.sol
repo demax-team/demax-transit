@@ -4,6 +4,8 @@ import '../libraries/SafeMath.sol';
 contract BurgerERC20 {
     using SafeMath for uint;
 
+    bytes32 public constant TokenSignature = "BURGER_TRANSIT";
+
     address public platform;
     string public name;
     string public symbol;
