@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.16;
-import '../libraries/SafeMath.sol';
+import './libraries/SafeMath.sol';
 contract BurgerERC20 {
     using SafeMath for uint;
 
