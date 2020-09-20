@@ -10,6 +10,10 @@ interface IWETH {
     function withdraw(uint) external;
 }
 
+interface IBSCBurgerTransit {
+    function pairFor(address) external returns (address); 
+}
+
 contract ETHBurgerTransit {
     using SafeMath for uint;
     
@@ -17,6 +21,7 @@ contract ETHBurgerTransit {
     address public signWallet;
     address public developWallet;
     address public WETH;
+    address public partner;
     
     uint public totalFee;
     uint public developFee;
@@ -37,6 +42,11 @@ contract ETHBurgerTransit {
     
     receive() external payable {
         assert(msg.sender == WETH);
+    }
+
+    function changePartner(address _partner) external {
+        require(msg.sender == owner, "CHANGE_PARTNER_FORBIDDEN");
+        partner = _partner;
     }
     
     function changeSigner(address _wallet) external {
@@ -64,6 +74,10 @@ contract ETHBurgerTransit {
     
     function transitForBSC(address _token, uint _amount) external {
         require(_amount > 0, "INVALID_AMOUNT");
+        if (partner != address(0)) {
+            address maddr = IBSCBurgerTransit(partner).pairFor(_token);
+            require(maddr == address(0), "MAP_TOKEN_FORBIDDEN");
+        }
         TransferHelper.safeTransferFrom(_token, msg.sender, address(this), _amount);
         emit Transit(msg.sender, _token, _amount);
     }
