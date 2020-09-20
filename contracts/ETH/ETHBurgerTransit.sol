@@ -103,7 +103,7 @@ contract ETHBurgerTransit {
         emit Withdraw(_paybackId, msg.sender, _token, _amount);
     }
     
-    function _verify(bytes32 _message, bytes memory _signature) internal view returns (bool) {
+    function _verify(bytes32 _message, bytes memory _signature) internal returns (bool) {
         bytes32 hash = ISignatureUtils(sigAddress).toEthBytes32SignedMessageHash(_message);
         address[] memory signList = ISignatureUtils(sigAddress).recoverAddresses(hash, _signature);
         return signList[0] == signWallet;
