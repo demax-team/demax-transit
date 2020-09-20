@@ -21,7 +21,7 @@ contract ETHBurgerTransit {
     uint public totalFee;
     uint public developFee;
     
-    // key: payback_id
+    // key: payback_id 
     mapping (bytes32 => bool) public executedMap;
     
     event Transit(address indexed from, address indexed token, uint amount);
