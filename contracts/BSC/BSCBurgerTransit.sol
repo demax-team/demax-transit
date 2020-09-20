@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.5.16;
+pragma solidity >=0.6.0;
 
-import './libraries/TransferHelper.sol';
-import './libraries/SignatureUtils.sol';
+import '../libraries/TransferHelper.sol';
 import './BurgerERC20.sol';
 
 interface IWETH {
@@ -10,11 +9,17 @@ interface IWETH {
     function withdraw(uint) external;
 }
 
+interface ISignatureUtils {
+    function toEthBytes32SignedMessageHash (bytes32 _msg) external returns (bytes32 signHash);
+    function recoverAddresses(bytes32 _hash, bytes calldata _signatures) external returns (address[] memory addresses);
+}
+
 contract BSCBurgerTransit {
     using SafeMath for uint;
     address public owner;
     address public signWallet;
     address public developWallet;
+    address public sigAddress;
     
     uint public totalFee;
     
@@ -32,7 +37,8 @@ contract BSCBurgerTransit {
     event Withdraw(bytes32 transitId, address indexed to, address indexed token, uint amount);
     event CollectFee(address indexed handler, uint amount);
     
-    constructor(address _signer, address _developer) public {
+    constructor(address _sig, address _signer, address _developer) public {
+        sigAddress = _sig;
         signWallet = _signer;
         developWallet = _developer;
         owner = msg.sender;
@@ -99,9 +105,9 @@ contract BSCBurgerTransit {
         emit Withdraw(_transitId, msg.sender, _token, _amount);
     }
     
-    function _verify(bytes32 _message, bytes memory _signature) internal view returns (bool) {
-        bytes32 hash = SignatureUtils.toEthBytes32SignedMessageHash(_message);
-        address[] memory signList = SignatureUtils.recoverAddresses(hash, _signature);
+    function _verify(bytes32 _message, bytes memory _signature) internal returns (bool) {
+        bytes32 hash = ISignatureUtils(sigAddress).toEthBytes32SignedMessageHash(_message);
+        address[] memory signList = ISignatureUtils(sigAddress).recoverAddresses(hash, _signature);
         return signList[0] == signWallet;
     }
     

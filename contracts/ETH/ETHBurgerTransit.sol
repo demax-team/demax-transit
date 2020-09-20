@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.16;
 
-import './libraries/SafeMath.sol';
-import './libraries/TransferHelper.sol';
-import './libraries/SignatureUtils.sol';
+import '../libraries/SafeMath.sol';
+import '../libraries/TransferHelper.sol';
 
 interface IWETH {
     function deposit() external payable;
     function withdraw(uint) external;
+}
+
+interface ISignatureUtils {
+    function toEthBytes32SignedMessageHash (bytes32 _msg) external returns (bytes32 signHash);
+    function recoverAddresses(bytes32 _hash, bytes calldata _signatures) external returns (address[] memory addresses);
 }
 
 contract ETHBurgerTransit {
@@ -17,6 +21,7 @@ contract ETHBurgerTransit {
     address public signWallet;
     address public developWallet;
     address public WETH;
+    address public sigAddress;
     
     uint public totalFee;
     uint public developFee;
@@ -28,7 +33,8 @@ contract ETHBurgerTransit {
     event Withdraw(bytes32 paybackId, address indexed to, address indexed token, uint amount);
     event CollectFee(address indexed handler, uint amount);
     
-    constructor(address _WETH, address _signer, address _developer) public {
+    constructor(address _sig, address _WETH, address _signer, address _developer) public {
+        sigAddress = _sig;
         WETH = _WETH;
         signWallet = _signer;
         developWallet = _developer;
@@ -98,8 +104,8 @@ contract ETHBurgerTransit {
     }
     
     function _verify(bytes32 _message, bytes memory _signature) internal view returns (bool) {
-        bytes32 hash = SignatureUtils.toEthBytes32SignedMessageHash(_message);
-        address[] memory signList = SignatureUtils.recoverAddresses(hash, _signature);
+        bytes32 hash = ISignatureUtils(sigAddress).toEthBytes32SignedMessageHash(_message);
+        address[] memory signList = ISignatureUtils(sigAddress).recoverAddresses(hash, _signature);
         return signList[0] == signWallet;
     }
 }

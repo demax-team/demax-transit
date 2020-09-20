@@ -1,9 +1,10 @@
-pragma solidity >=0.5.16;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.6.0;
 
 /// @title A library of utilities for (multi)signatures
 /// @author Alexander Kern <alex@cleargraph.com>
 /// @dev This library can be linked to another Solidity contract to expose signature manipulation functions.
-library SignatureUtils {
+contract SignatureUtils {
 
     /// @notice Converts a bytes32 to an signed message hash.
     /// @param _msg The bytes32 message (i.e. keccak256 result) to encrypt
