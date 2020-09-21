@@ -61,9 +61,11 @@ contract BSCBurgerTransit {
         totalFee = 0;
     }
     
-    function paybackTransit(address _token, uint _amount) external {
+    function paybackTransit(address _token, uint _amount) external payable {
         require(pairFor[_token] != address(0), "UNSUPPORT_TOKEN");
         require(_amount > 0 && BurgerERC20(_token).balanceOf(msg.sender) >= _amount, "INVALID_AMOUNT");
+        require(msg.value == developFee, "FEE_VALUE_INCORRECT");
+        totalFee = totalFee.add(developFee);
         BurgerERC20(_token).burn(msg.sender, _amount);
         emit Payback(msg.sender, pairFor[_token], _amount);
     }
