@@ -27,11 +27,11 @@ contract TokenQuery {
         uint balanceOf;
     }
     
-    function queryInfo(address[] memory tokens) public view returns(Token[] memory info_list){
+    function queryInfo(address user, address[] memory tokens) public view returns(Token[] memory info_list){
         info_list = new Token[](tokens.length);
         for(uint i = 0;i < tokens.length;i++) {
             info_list[i] = Token(IERC20(tokens[i]).name(), IERC20(tokens[i]).symbol(), IERC20(tokens[i]).decimals()
-            , IERC20(tokens[i]).balanceOf(msg.sender));
+            , IERC20(tokens[i]).balanceOf(user));
         }
     }
 }
