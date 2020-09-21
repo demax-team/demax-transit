@@ -2,7 +2,6 @@
 pragma solidity >=0.5.16;
 
 import './libraries/TransferHelper.sol';
-import './libraries/SignatureUtils.sol';
 import './BurgerERC20.sol';
 
 interface IWETH {
@@ -73,16 +72,14 @@ contract BSCBurgerTransit {
     function withdrawTransitToken(
     bytes calldata _signature,
     bytes32 _transitId,
-    address _to,
     uint _amount,
     address _token,
     string calldata _name,
     string calldata _symbol,
     uint8 _decimals
     ) external payable {
-        require(_to == msg.sender, "FORBIDDEN");
         require(executedMap[_transitId] == false, "ALREADY_EXECUTED");
-        bytes32 message = keccak256(abi.encodePacked(_transitId, _to, _amount, _token, _name, _symbol, _decimals));
+        bytes32 message = keccak256(abi.encodePacked(_transitId, msg.sender, _amount, _token, _name, _symbol, _decimals));
         require(_verify(message, _signature), "INVALID_SIGNATURE");
 
         require(_amount > 0, "NOTHING_TO_WITHDRAW");
@@ -100,9 +97,46 @@ contract BSCBurgerTransit {
     }
     
     function _verify(bytes32 _message, bytes memory _signature) internal view returns (bool) {
-        bytes32 hash = SignatureUtils.toEthBytes32SignedMessageHash(_message);
-        address[] memory signList = SignatureUtils.recoverAddresses(hash, _signature);
+        bytes32 hash = _toEthBytes32SignedMessageHash(_message);
+        address[] memory signList = _recoverAddresses(hash, _signature);
         return signList[0] == signWallet;
+    }
+    
+    function _toEthBytes32SignedMessageHash (bytes32 _msg) pure internal returns (bytes32 signHash)
+    {
+        signHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _msg));
+    }
+    
+    function _recoverAddresses(bytes32 _hash, bytes memory _signatures) pure internal returns (address[] memory addresses)
+    {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        uint count = _countSignatures(_signatures);
+        addresses = new address[](count);
+        for (uint i = 0; i < count; i++) {
+            (v, r, s) = _parseSignature(_signatures, i);
+            addresses[i] = ecrecover(_hash, v, r, s);
+        }
+    }
+    
+    function _parseSignature(bytes memory _signatures, uint _pos) pure internal returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        uint offset = _pos * 65;
+        assembly {
+            r := mload(add(_signatures, add(32, offset)))
+            s := mload(add(_signatures, add(64, offset)))
+            v := and(mload(add(_signatures, add(65, offset))), 0xff)
+        }
+
+        if (v < 27) v += 27;
+
+        require(v == 27 || v == 28);
+    }
+    
+    function _countSignatures(bytes memory _signatures) pure internal returns (uint)
+    {
+        return _signatures.length % 65 == 0 ? _signatures.length / 65 : 0;
     }
     
     function _createToken (address _transitToken, string memory _name, string memory _symbol, uint8 _decimals) internal returns(address bscBurgerToken){
