@@ -23,8 +23,8 @@ contract ETHBurgerTransit {
     // key: payback_id
     mapping (bytes32 => bool) public executedMap;
     
-    event TransitForBSC(address indexed from, address indexed token, uint amount);
-    event WithdrawFromBSC(bytes32 paybackId, address indexed to, address indexed token, uint amount);
+    event Transit(address indexed from, address indexed token, uint amount);
+    event Withdraw(bytes32 paybackId, address indexed to, address indexed token, uint amount);
     event CollectFee(address indexed handler, uint amount);
     
     constructor(address _WETH, address _signer, address _developer) public {
@@ -64,13 +64,13 @@ contract ETHBurgerTransit {
     function transitForBSC(address _token, uint _amount) external {
         require(_amount > 0, "INVALID_AMOUNT");
         TransferHelper.safeTransferFrom(_token, msg.sender, address(this), _amount);
-        emit TransitForBSC(msg.sender, _token, _amount);
+        emit Transit(msg.sender, _token, _amount);
     }
     
     function transitETHForBSC() external payable {
         require(msg.value > 0, "INVALID_AMOUNT");
         IWETH(WETH).deposit{value: msg.value}();
-        emit TransitForBSC(msg.sender, WETH, msg.value);
+        emit Transit(msg.sender, WETH, msg.value);
     }
     
     function withdrawFromBSC(bytes calldata _signature, bytes32 _paybackId, address _token, uint _amount) external payable {
@@ -92,7 +92,7 @@ contract ETHBurgerTransit {
         
         executedMap[_paybackId] = true;
         
-        emit WithdrawFromBSC(_paybackId, msg.sender, _token, _amount);
+        emit Withdraw(_paybackId, msg.sender, _token, _amount);
     }
     
     function _verify(bytes32 _message, bytes memory _signature) internal view returns (bool) {
