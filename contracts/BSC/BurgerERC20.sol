@@ -16,8 +16,6 @@ contract BurgerERC20 {
 
     event Transfer(address indexed from, address indexed to, uint value);
     event Approval(address indexed owner, address indexed spender, uint value);
-    event Mint(address indexed from, address indexed to, uint256 value);
-    event Burn(address indexed from, address indexed to, uint256 value);
 
     constructor() public 
     {
@@ -61,15 +59,11 @@ contract BurgerERC20 {
     
     function mint(address to, uint256 value) external {
         require(msg.sender == platform, "FORBIDDEN");
-        totalSupply = totalSupply.add(value);
-        balanceOf[to] = balanceOf[to].add(value);
-        emit Mint(address(0), to, value);
+        _transfer(address(0), to, value);
     }
 
     function burn(address from, uint256 value) external {
         require(msg.sender == platform, "FORBIDDEN");
-        balanceOf[from] = balanceOf[from].sub(value);
-        totalSupply = totalSupply.sub(value);
-        emit Burn(from, address(0), value);
+        _transfer(from, address(0), value);
     }
 }
