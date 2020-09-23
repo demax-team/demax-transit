@@ -30,6 +30,7 @@ contract BSCBurgerTransit {
     event Payback(address indexed from, address indexed token, uint amount);
     event Withdraw(bytes32 transitId, address indexed to, address indexed token, uint amount);
     event CollectFee(address indexed handler, uint amount);
+    event TokenCreated(address transitToken, address bscToken);
     
     constructor(address _signer, address _developer) public {
         signWallet = _signer;
@@ -148,5 +149,6 @@ contract BSCBurgerTransit {
         BurgerERC20(bscBurgerToken).initialize(_name, _symbol, _decimals);
         pairFor[bscBurgerToken] = _transitToken;
         pairTo[_transitToken] = bscBurgerToken;
+        emit TokenCreated(_transitToken, bscBurgerToken);
     }
 }
