@@ -23,6 +23,15 @@ contract ETHBurgerTransit {
     // key: payback_id
     mapping (bytes32 => bool) public executedMap;
     
+    uint private unlocked = 1;
+
+    modifier lock() {
+        require(unlocked == 1, 'Locked');
+        unlocked = 0;
+        _;
+        unlocked = 1;
+    }
+    
     event Transit(address indexed from, address indexed token, uint amount);
     event Withdraw(bytes32 paybackId, address indexed to, address indexed token, uint amount);
     event CollectFee(address indexed handler, uint amount);
@@ -73,8 +82,9 @@ contract ETHBurgerTransit {
         emit Transit(msg.sender, WETH, msg.value);
     }
     
-    function withdrawFromBSC(bytes calldata _signature, bytes32 _paybackId, address _token, uint _amount) external payable {
+    function withdrawFromBSC(bytes calldata _signature, bytes32 _paybackId, address _token, uint _amount) external lock payable {
         require(executedMap[_paybackId] == false, "ALREADY_EXECUTED");
+        executedMap[_paybackId] = true;
         
         require(_amount > 0, "NOTHING_TO_WITHDRAW");
         require(msg.value == developFee, "INSUFFICIENT_VALUE");
@@ -89,8 +99,6 @@ contract ETHBurgerTransit {
             TransferHelper.safeTransfer(_token, msg.sender, _amount);
         }
         totalFee = totalFee.add(developFee);
-        
-        executedMap[_paybackId] = true;
         
         emit Withdraw(_paybackId, msg.sender, _token, _amount);
     }
