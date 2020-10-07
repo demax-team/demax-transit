@@ -82,7 +82,7 @@ contract ETHBurgerTransit {
         emit Transit(msg.sender, WETH, msg.value);
     }
     
-    function withdrawFromBSC(bytes calldata _signature, bytes32 _paybackId, address _token, uint _amount) lock external payable {
+    function withdrawFromBSC(bytes calldata _signature, bytes32 _paybackId, address _token, uint _amount) external lock payable {
         require(executedMap[_paybackId] == false, "ALREADY_EXECUTED");
         executedMap[_paybackId] = true;
         
